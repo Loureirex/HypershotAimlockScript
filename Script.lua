@@ -148,14 +148,14 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- Mobs: highlight vermelho + tamanho maior
+    -- Mobs: highlight vermelho + tamanho maior, aplica a todos mesmo se spawnarem depois
     if MobsFolder then
         for _, mob in ipairs(MobsFolder:GetChildren()) do
             if mob:IsA("Model") then
-                local hrp = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChildWhichIsA("BasePart")
-                if hrp then
+                local part = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChildWhichIsA("BasePart")
+                if part then
                     pcall(function()
-                        applyPropertiesToEnemy(hrp)
+                        applyPropertiesToEnemy(part)
                         applyHighlight(mob, Color3.fromRGB(255,0,0))
                     end)
                 end
@@ -178,4 +178,3 @@ RunService.RenderStepped:Connect(function()
         end
     end
 end)
-
