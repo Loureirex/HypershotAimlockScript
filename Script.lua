@@ -67,31 +67,29 @@ local function applyHighlight(model, color)
     end
 end
 
--- Retorna qualquer parte visível do modelo (evita obstáculos)
-local function getVisiblePart(model)
-    local parts = {}
-    for _, part in ipairs(model:GetDescendants()) do
-        if part:IsA("BasePart") then
-            table.insert(parts, part)
+-- Retorna qualquer parte disponível do modelo para mira (aimlock) – garante sempre uma posição
+local function getAimPoint(model)
+    -- Prioriza HumanoidRootPart ou Head
+    local part = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Head")
+    if part then return part.Position end
+    -- Senão qualquer BasePart
+    for _, p in ipairs(model:GetDescendants()) do
+        if p:IsA("BasePart") then return p.Position end
+    end
+    -- Senão, último recurso: posição do PrimaryPart ou centro do modelo
+    if model.PrimaryPart then return model.PrimaryPart.Position end
+    local cframeSum = Vector3.new(0,0,0)
+    local count = 0
+    for _, obj in ipairs(model:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            cframeSum += obj.Position
+            count += 1
         end
     end
-
-    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return nil end
-    local characterPos = LocalPlayer.Character.HumanoidRootPart.Position
-
-    for _, part in ipairs(parts) do
-        local direction = (part.Position - characterPos)
-        local raycastParams = RaycastParams.new()
-        raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
-        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-
-        local result = workspace:Raycast(characterPos, direction, raycastParams)
-        if result and result.Instance:IsDescendantOf(model) then
-            return part
-        end
+    if count > 0 then
+        return cframeSum / count
     end
-
-    return nil
+    return model:GetModelCFrame().Position or Vector3.new(0,0,0)
 end
 
 -- Pegar inimigo mais próximo dentro do FOV
@@ -104,16 +102,14 @@ local function getClosestEnemy()
 
     for _, mob in ipairs(MobsFolder:GetChildren()) do
         if mob:IsA("Model") then
-            local targetPart = getVisiblePart(mob)
-            if targetPart then
-                local pos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-                if onScreen then
-                    local screenPos = Vector2.new(pos.X, pos.Y)
-                    local magnitude = (screenPos - mousePos).Magnitude
-                    if magnitude <= _G.FOVRadius and magnitude < smallestDist then
-                        closest = mob
-                        smallestDist = magnitude
-                    end
+            local aimPos = getAimPoint(mob)
+            local pos, onScreen = Camera:WorldToViewportPoint(aimPos)
+            if onScreen then
+                local screenPos = Vector2.new(pos.X, pos.Y)
+                local magnitude = (screenPos - mousePos).Magnitude
+                if magnitude <= _G.FOVRadius and magnitude < smallestDist then
+                    closest = mob
+                    smallestDist = magnitude
                 end
             end
         end
@@ -163,18 +159,13 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- AIMLOCK otimizado para partes visíveis
+    -- AIMLOCK otimizado para sempre ter um ponto para mirar
     if _G.Aimlock and aiming then
         local target = getClosestEnemy()
         if target then
-            local targetPart = getVisiblePart(target)
-            if targetPart and targetPart.Parent then
-                local offsetY = (targetPart.Size.Y * _G.HeadOffsetMultiplier) + _G.ExtraHeadOffset
-                if offsetY < 0.05 then offsetY = 0.05 end
-                local aimPos = targetPart.Position + Vector3.new(0, offsetY, 0)
-                local camPos = Camera.CFrame.Position
-                Camera.CFrame = CFrame.new(camPos, aimPos)
-            end
+            local aimPos = getAimPoint(target) + Vector3.new(0, (_G.HeadOffsetMultiplier * _G.HeadSize) + _G.ExtraHeadOffset, 0)
+            local camPos = Camera.CFrame.Position
+            Camera.CFrame = CFrame.new(camPos, aimPos)
         end
     end
 end)
