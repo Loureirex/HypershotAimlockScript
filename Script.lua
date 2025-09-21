@@ -1,5 +1,4 @@
 -- CONFIGURAÇÕES
-_G.HeadSize = 30
 _G.Disabled = false
 _G.Aimlock = true
 _G.AimKey = Enum.UserInputType.MouseButton1
@@ -25,7 +24,7 @@ if DrawingSuccess and Drawing then
     FOVCircle.Radius = _G.FOVRadius
     FOVCircle.Thickness = 2
     FOVCircle.Transparency = 1
-    FOVCircle.Color = Color3.fromRGB(0, 255, 0)
+    FOVCircle.Color = Color3.fromRGB(0,255,0)
     FOVCircle.Filled = false
 end
 
@@ -37,12 +36,31 @@ if FOVCircle then
 end
 
 -- FUNÇÕES AUXILIARES
-local function getAnyPart(model)
-    if not model then return nil end
-    return model:FindFirstChild("HumanoidRootPart") 
-        or model:FindFirstChild("Head") 
-        or model.PrimaryPart 
-        or model:FindFirstChildWhichIsA("BasePart")
+local function getAllParts(model)
+    if not model then return {} end
+    local parts = {}
+    for _, part in ipairs(model:GetDescendants()) do
+        if part:IsA("BasePart") then
+            table.insert(parts, part)
+        end
+    end
+    return parts
+end
+
+local function getClosestPart(model, mousePos)
+    local parts = getAllParts(model)
+    local closestPart, closestDist = nil, math.huge
+    for _, part in ipairs(parts) do
+        local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+        if onScreen then
+            local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+            if dist < closestDist then
+                closestDist = dist
+                closestPart = part
+            end
+        end
+    end
+    return closestPart
 end
 
 local function applyHighlight(model, color)
@@ -60,28 +78,24 @@ local function applyHighlight(model, color)
 end
 
 -- PEGAR O JOGADOR MAIS PRÓXIMO
-local function getClosestPlayer()
-    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return nil end
-    local closest, smallestDist = nil, math.huge
-    local mousePos = UserInputService:GetMouseLocation()
-
+local function getClosestPlayer(mousePos)
+    local closestPlayer, smallestDist = nil, math.huge
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
-            local part = getAnyPart(player.Character)
+            local part = getClosestPart(player.Character, mousePos)
             if part then
-                local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
                 if onScreen then
-                    local mag = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
-                    if mag <= _G.FOVRadius and mag < smallestDist then
-                        closest = player.Character
-                        smallestDist = mag
+                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                    if dist <= _G.FOVRadius and dist < smallestDist then
+                        closestPlayer = player.Character
+                        smallestDist = dist
                     end
                 end
             end
         end
     end
-
-    return closest
+    return closestPlayer
 end
 
 -- INPUT
@@ -101,7 +115,9 @@ RunService.RenderStepped:Connect(function()
         if FOVCircle then FOVCircle.Visible = true end
     end
 
-    -- Highlight de todos os jogadores (exceto LocalPlayer)
+    local mousePos = UserInputService:GetMouseLocation()
+
+    -- Highlight jogadores inimigos
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             applyHighlight(player.Character, Color3.fromRGB(255,0,0))
@@ -110,9 +126,9 @@ RunService.RenderStepped:Connect(function()
 
     -- AIMLOCK
     if _G.Aimlock and aiming then
-        local target = getClosestPlayer()
+        local target = getClosestPlayer(mousePos)
         if target then
-            local part = getAnyPart(target)
+            local part = getClosestPart(target, mousePos)
             if part then
                 local offsetY = (part.Size.Y * _G.HeadOffsetMultiplier) + _G.ExtraHeadOffset
                 if offsetY < 0.05 then offsetY = 0.05 end
