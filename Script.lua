@@ -40,8 +40,9 @@ end
 -- FUNÇÕES AUXILIARES
 local function getValidPart(model)
     if not model then return nil end
-    return model:FindFirstChild("HumanoidRootPart") 
-        or model:FindFirstChild("Head") 
+    return model:FindFirstChild("HumanoidRootPart")
+        or model:FindFirstChild("Head")
+        or model.PrimaryPart
         or model:FindFirstChildWhichIsA("BasePart")
 end
 
@@ -77,7 +78,7 @@ local function getClosestEnemy()
     local closest, smallestDist = nil, math.huge
     local mousePos = UserInputService:GetMouseLocation()
 
-    -- 1. Checa jogadores inimigos
+    -- 1. Prioridade: jogadores inimigos
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             local part = getValidPart(player.Character)
@@ -94,7 +95,7 @@ local function getClosestEnemy()
         end
     end
 
-    -- 2. Checa mobs
+    -- 2. Secundário: mobs
     if MobsFolder then
         for _, mob in ipairs(MobsFolder:GetChildren()) do
             if mob:IsA("Model") then
