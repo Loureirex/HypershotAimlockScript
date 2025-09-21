@@ -1,6 +1,6 @@
--- CONFIG
+-- CONFIGURAÇÕES
 _G.HeadSize = 30
-_G.Disabled = true
+_G.Disabled = false -- true = desativado
 _G.Aimlock = true
 _G.AimKey = Enum.UserInputType.MouseButton1
 _G.FOVRadius = 150
@@ -13,11 +13,11 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
-local MobsFolder = workspace:FindFirstChild("Mobs")
+local MobsFolder = workspace:FindFirstChild("Mobs") or workspace:WaitForChild("Mobs",5)
 
 local aiming = false
 
--- DRAWING FOV
+-- FOV CIRCLE
 local DrawingSuccess, Drawing = pcall(function() return Drawing end)
 local FOVCircle
 if DrawingSuccess and Drawing then
@@ -42,10 +42,8 @@ end
 local function applyPropertiesToEnemy(part)
     if part and part:IsA("BasePart") then
         local success, oldCFrame = pcall(function() return part.CFrame end)
-        part.Size = Vector3.new(_G.HeadSize, _G.HeadSize, _G.HeadSize)
-        if success and oldCFrame then
-            part.CFrame = oldCFrame
-        end
+        part.Size = Vector3.new(_G.HeadSize,_G.HeadSize,_G.HeadSize)
+        if success and oldCFrame then part.CFrame = oldCFrame end
         part.Transparency = 0.7
         part.BrickColor = BrickColor.new("Really blue")
         part.Material = Enum.Material.Neon
@@ -53,7 +51,7 @@ local function applyPropertiesToEnemy(part)
     end
 end
 
-local function applyHighlight(model, color)
+local function applyHighlight(model,color)
     if not model:FindFirstChild("HighlightESP") then
         local highlight = Instance.new("Highlight")
         highlight.Name = "HighlightESP"
@@ -67,11 +65,10 @@ local function applyHighlight(model, color)
     end
 end
 
--- Garante que o modelo tem um Part para o aimlock
+-- Garante que o modelo tem um Part para Aimlock
 local function ensureAimPart(model)
     local part = model:FindFirstChild("AimPart")
     if part then return part end
-
     part = Instance.new("Part")
     part.Name = "AimPart"
     part.Size = Vector3.new(1,1,1)
@@ -84,7 +81,7 @@ local function ensureAimPart(model)
     return part
 end
 
--- Retorna qualquer parte para mira (HumanoidRootPart, Head, BasePart ou AimPart)
+-- Retorna qualquer parte para mira
 local function getAimPart(model)
     return model:FindFirstChild("HumanoidRootPart")
         or model:FindFirstChild("Head")
@@ -92,20 +89,18 @@ local function getAimPart(model)
         or ensureAimPart(model)
 end
 
--- Pegar inimigo mais próximo dentro do FOV
+-- Pega inimigo mais próximo dentro do FOV
 local function getClosestEnemy()
     if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return nil end
     if not MobsFolder then return nil end
-
     local closest, smallestDist = nil, math.huge
     local mousePos = UserInputService:GetMouseLocation()
-
     for _, mob in ipairs(MobsFolder:GetChildren()) do
         if mob:IsA("Model") then
             local part = getAimPart(mob)
-            local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+            local pos,onScreen = Camera:WorldToViewportPoint(part.Position)
             if onScreen then
-                local screenPos = Vector2.new(pos.X, pos.Y)
+                local screenPos = Vector2.new(pos.X,pos.Y)
                 local magnitude = (screenPos - mousePos).Magnitude
                 if magnitude <= _G.FOVRadius and magnitude < smallestDist then
                     closest = mob
@@ -114,7 +109,6 @@ local function getClosestEnemy()
             end
         end
     end
-
     return closest
 end
 
@@ -135,12 +129,10 @@ RunService.RenderStepped:Connect(function()
         if FOVCircle then FOVCircle.Visible = true end
     end
 
-    -- Amigos: só highlight azul
+    -- Amigos: highlight azul
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            pcall(function()
-                applyHighlight(player.Character, Color3.fromRGB(0,170,255))
-            end)
+            pcall(function() applyHighlight(player.Character, Color3.fromRGB(0,170,255)) end)
         end
     end
 
@@ -164,9 +156,9 @@ RunService.RenderStepped:Connect(function()
         local target = getClosestEnemy()
         if target then
             local part = getAimPart(target)
-            local offsetY = (part.Size.Y * _G.HeadOffsetMultiplier) + _G.ExtraHeadOffset
+            local offsetY = (part.Size.Y*_G.HeadOffsetMultiplier)+_G.ExtraHeadOffset
             if offsetY < 0.05 then offsetY = 0.05 end
-            local aimPos = part.Position + Vector3.new(0, offsetY, 0)
+            local aimPos = part.Position + Vector3.new(0,offsetY,0)
             local camPos = Camera.CFrame.Position
             Camera.CFrame = CFrame.new(camPos, aimPos)
         end
