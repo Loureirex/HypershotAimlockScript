@@ -34,7 +34,6 @@ if FOVCircle then
     RunService.RenderStepped:Connect(function()
         local mousePos = UserInputService:GetMouseLocation()
         FOVCircle.Position = mousePos
-        FOVCircle.Radius = _G.FOVRadius
     end)
 end
 
@@ -46,7 +45,7 @@ local function getValidPart(model)
         or model:FindFirstChildWhichIsA("BasePart")
 end
 
-local function applyHighlight(model,color)
+local function applyHighlight(model, color)
     if model and not model:FindFirstChild("HighlightESP") then
         local highlight = Instance.new("Highlight")
         highlight.Name = "HighlightESP"
@@ -72,13 +71,13 @@ local function applyPropertiesToEnemy(part)
     end
 end
 
--- PEGA O INIMIGO MAIS PRÓXIMO
+-- PEGAR O INIMIGO MAIS PRÓXIMO
 local function getClosestEnemy()
     if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return nil end
     local closest, smallestDist = nil, math.huge
     local mousePos = UserInputService:GetMouseLocation()
 
-    -- PRIORIDADE: JOGADORES INIMIGOS
+    -- 1. Checa jogadores inimigos
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             local part = getValidPart(player.Character)
@@ -95,7 +94,7 @@ local function getClosestEnemy()
         end
     end
 
-    -- MOBS (se existirem)
+    -- 2. Checa mobs
     if MobsFolder then
         for _, mob in ipairs(MobsFolder:GetChildren()) do
             if mob:IsA("Model") then
@@ -127,21 +126,21 @@ end)
 
 -- LOOP PRINCIPAL
 RunService.RenderStepped:Connect(function()
-    if not _G.Disabled then
+    if _G.Disabled then
         if FOVCircle then FOVCircle.Visible = false end
         return
     else
         if FOVCircle then FOVCircle.Visible = true end
     end
 
-    -- HIGHLIGHT JOGADORES
+    -- Highlight jogadores
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             applyHighlight(player.Character, Color3.fromRGB(0,170,255))
         end
     end
 
-    -- HIGHLIGHT MOBS
+    -- Highlight mobs
     if MobsFolder then
         for _, mob in ipairs(MobsFolder:GetChildren()) do
             if mob:IsA("Model") then
