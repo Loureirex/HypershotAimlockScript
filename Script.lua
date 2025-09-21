@@ -2,9 +2,8 @@
 _G.HeadSize = 30
 _G.Disabled = true
 _G.Aimlock = true
-_G.AimKey = Enum.UserInputType.MouseButton1 -- botão esquerdo do mouse
+_G.AimKey = Enum.UserInputType.MouseButton1
 _G.FOVRadius = 150
-_G.AimPart = "Head"
 _G.HeadOffsetMultiplier = 0.25
 _G.ExtraHeadOffset = 0.15
 
@@ -68,30 +67,34 @@ local function applyHighlight(model, color)
     end
 end
 
--- Retorna a parte alvo com fallback (Head preferencial)
-local function getTargetPart(model)
-    if not model or not model:IsA("Model") then return nil end
-    local names = {"Head","head", _G.AimPart or "Head","UpperTorso","Torso","HumanoidRootPart"}
-    for _, name in ipairs(names) do
-        local part = model:FindFirstChild(name)
-        if part and part:IsA("BasePart") then
+-- Retorna qualquer parte visível do modelo (evita obstáculos)
+local function getVisiblePart(model)
+    local parts = {}
+    for _, part in ipairs(model:GetDescendants()) do
+        if part:IsA("BasePart") then
+            table.insert(parts, part)
+        end
+    end
+
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return nil end
+    local characterPos = LocalPlayer.Character.HumanoidRootPart.Position
+
+    for _, part in ipairs(parts) do
+        local direction = (part.Position - characterPos)
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+        local result = workspace:Raycast(characterPos, direction, raycastParams)
+        if result and result.Instance:IsDescendantOf(model) then
             return part
         end
     end
-    for _, desc in ipairs(model:GetDescendants()) do
-        if desc:IsA("BasePart") and string.lower(desc.Name) == "head" then
-            return desc
-        end
-    end
-    for _, desc in ipairs(model:GetDescendants()) do
-        if desc:IsA("BasePart") and desc.Size.Y > 0.2 then
-            return desc
-        end
-    end
+
     return nil
 end
 
--- Só pega mobs (inimigos)
+-- Pegar inimigo mais próximo dentro do FOV
 local function getClosestEnemy()
     if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return nil end
     if not MobsFolder then return nil end
@@ -100,12 +103,12 @@ local function getClosestEnemy()
     local mousePos = UserInputService:GetMouseLocation()
 
     for _, mob in ipairs(MobsFolder:GetChildren()) do
-        if mob:IsA("Model") and mob:FindFirstChild("HumanoidRootPart") then
-            local targetPart = getTargetPart(mob)
+        if mob:IsA("Model") then
+            local targetPart = getVisiblePart(mob)
             if targetPart then
                 local pos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
                 if onScreen then
-                    local screenPos = Vector2.new(pos.X,pos.Y)
+                    local screenPos = Vector2.new(pos.X, pos.Y)
                     local magnitude = (screenPos - mousePos).Magnitude
                     if magnitude <= _G.FOVRadius and magnitude < smallestDist then
                         closest = mob
@@ -115,6 +118,7 @@ local function getClosestEnemy()
             end
         end
     end
+
     return closest
 end
 
@@ -135,7 +139,7 @@ RunService.RenderStepped:Connect(function()
         if FOVCircle then FOVCircle.Visible = true end
     end
 
-    -- Highlight jogadores amigos (não aumenta tamanho)
+    -- Amigos: só highlight azul
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             pcall(function()
@@ -147,20 +151,23 @@ RunService.RenderStepped:Connect(function()
     -- Mobs: highlight vermelho + tamanho maior
     if MobsFolder then
         for _, mob in ipairs(MobsFolder:GetChildren()) do
-            if mob:IsA("Model") and mob:FindFirstChild("HumanoidRootPart") then
-                pcall(function()
-                    applyPropertiesToEnemy(mob.HumanoidRootPart)
-                    applyHighlight(mob, Color3.fromRGB(255,0,0))
-                end)
+            if mob:IsA("Model") then
+                local hrp = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChildWhichIsA("BasePart")
+                if hrp then
+                    pcall(function()
+                        applyPropertiesToEnemy(hrp)
+                        applyHighlight(mob, Color3.fromRGB(255,0,0))
+                    end)
+                end
             end
         end
     end
 
-    -- AIMLOCK só em mobs
+    -- AIMLOCK otimizado para partes visíveis
     if _G.Aimlock and aiming then
         local target = getClosestEnemy()
         if target then
-            local targetPart = getTargetPart(target)
+            local targetPart = getVisiblePart(target)
             if targetPart and targetPart.Parent then
                 local offsetY = (targetPart.Size.Y * _G.HeadOffsetMultiplier) + _G.ExtraHeadOffset
                 if offsetY < 0.05 then offsetY = 0.05 end
@@ -171,3 +178,4 @@ RunService.RenderStepped:Connect(function()
         end
     end
 end)
+
