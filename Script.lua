@@ -8,9 +8,9 @@ _G.HeadOffsetMultiplier = 0.25
 _G.ExtraHeadOffset = 0.15
 
 -- SERVIÇOS
-local Players = game:GetService('Players')
-local RunService = game:GetService('RunService')
-local UserInputService = game:GetService('UserInputService')
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local MobsFolder = workspace:FindFirstChild("Mobs")
@@ -67,29 +67,29 @@ local function applyHighlight(model, color)
     end
 end
 
--- Retorna qualquer parte disponível do modelo para mira (aimlock) – garante sempre uma posição
-local function getAimPoint(model)
-    -- Prioriza HumanoidRootPart ou Head
-    local part = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Head")
-    if part then return part.Position end
-    -- Senão qualquer BasePart
-    for _, p in ipairs(model:GetDescendants()) do
-        if p:IsA("BasePart") then return p.Position end
-    end
-    -- Senão, último recurso: posição do PrimaryPart ou centro do modelo
-    if model.PrimaryPart then return model.PrimaryPart.Position end
-    local cframeSum = Vector3.new(0,0,0)
-    local count = 0
-    for _, obj in ipairs(model:GetDescendants()) do
-        if obj:IsA("BasePart") then
-            cframeSum += obj.Position
-            count += 1
-        end
-    end
-    if count > 0 then
-        return cframeSum / count
-    end
-    return model:GetModelCFrame().Position or Vector3.new(0,0,0)
+-- Garante que o modelo tem um Part para o aimlock
+local function ensureAimPart(model)
+    local part = model:FindFirstChild("AimPart")
+    if part then return part end
+
+    part = Instance.new("Part")
+    part.Name = "AimPart"
+    part.Size = Vector3.new(1,1,1)
+    part.Transparency = 1
+    part.CanCollide = false
+    part.Anchored = true
+    part.Parent = model
+    local cframe = model.PrimaryPart and model.PrimaryPart.CFrame or model:GetModelCFrame()
+    part.CFrame = cframe
+    return part
+end
+
+-- Retorna qualquer parte para mira (HumanoidRootPart, Head, BasePart ou AimPart)
+local function getAimPart(model)
+    return model:FindFirstChild("HumanoidRootPart")
+        or model:FindFirstChild("Head")
+        or model:FindFirstChildWhichIsA("BasePart")
+        or ensureAimPart(model)
 end
 
 -- Pegar inimigo mais próximo dentro do FOV
@@ -102,8 +102,8 @@ local function getClosestEnemy()
 
     for _, mob in ipairs(MobsFolder:GetChildren()) do
         if mob:IsA("Model") then
-            local aimPos = getAimPoint(mob)
-            local pos, onScreen = Camera:WorldToViewportPoint(aimPos)
+            local part = getAimPart(mob)
+            local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
             if onScreen then
                 local screenPos = Vector2.new(pos.X, pos.Y)
                 local magnitude = (screenPos - mousePos).Magnitude
@@ -144,11 +144,11 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- Mobs: highlight vermelho + tamanho maior, aplica a todos mesmo se spawnarem depois
+    -- Mobs: highlight vermelho + tamanho maior
     if MobsFolder then
         for _, mob in ipairs(MobsFolder:GetChildren()) do
             if mob:IsA("Model") then
-                local part = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChildWhichIsA("BasePart")
+                local part = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChildWhichIsA("BasePart") or ensureAimPart(mob)
                 if part then
                     pcall(function()
                         applyPropertiesToEnemy(part)
@@ -159,11 +159,14 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- AIMLOCK otimizado para sempre ter um ponto para mirar
+    -- AIMLOCK
     if _G.Aimlock and aiming then
         local target = getClosestEnemy()
         if target then
-            local aimPos = getAimPoint(target) + Vector3.new(0, (_G.HeadOffsetMultiplier * _G.HeadSize) + _G.ExtraHeadOffset, 0)
+            local part = getAimPart(target)
+            local offsetY = (part.Size.Y * _G.HeadOffsetMultiplier) + _G.ExtraHeadOffset
+            if offsetY < 0.05 then offsetY = 0.05 end
+            local aimPos = part.Position + Vector3.new(0, offsetY, 0)
             local camPos = Camera.CFrame.Position
             Camera.CFrame = CFrame.new(camPos, aimPos)
         end
